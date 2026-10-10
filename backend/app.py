@@ -14,7 +14,7 @@ from routes.chat_routes import router as chat_router
 from routes.conversation_routes import router as conversation_router
 from routes.memory_routes import router as memory_router
 from routes.voice_routes import router as voice_router
-from routes.settings_routes import router as settings_router
+from routes.settings_routes import router as settings_router, load_persisted_settings_into_runtime
 
 logging.basicConfig(
     level=logging.INFO,
@@ -24,15 +24,16 @@ logger = logging.getLogger("mikasa.core")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    init_db()
+    load_persisted_settings_into_runtime()
+    
     logger.info("=========================================")
     logger.info(f" MIKASA Core v{config.version} Starting...")
     logger.info(f" Architecture: Intelligence Router (V2.1)")
     logger.info(f" Routing Mode: {config.routing_mode}")
     logger.info(f" Host: {config.host}:{config.port}")
     logger.info("=========================================")
-    
-    init_db()
-    logger.info("Local SQLite database initialized.")
+    logger.info("Local SQLite database initialized & settings synchronized.")
     
     status = await brain.check_status()
     if status.get("brain_online") or status.get("brain_ready"):

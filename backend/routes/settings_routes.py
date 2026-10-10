@@ -27,6 +27,47 @@ DEFAULT_SETTINGS = {
     "router_fallback": config.router_fallback
 }
 
+def load_persisted_settings_into_runtime():
+    """Load settings stored in SQLite and sync them into runtime routers and modules."""
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT key, value FROM settings")
+        rows = cursor.fetchall()
+        conn.close()
+
+        for r in rows:
+            key = r["key"]
+            try:
+                val = json.loads(r["value"])
+            except Exception:
+                val = r["value"]
+
+            if key == "voice_enabled":
+                voice_config.enabled = bool(val)
+            elif key == "auto_speak":
+                voice_config.auto_speak = bool(val)
+            elif key == "voice_rate":
+                voice_config.rate = float(val)
+            elif key == "voice_volume":
+                voice_config.volume = float(val)
+            elif key == "routing_mode":
+                norm_mode = RoutingMode.normalize(str(val))
+                intelligence_router.default_mode = norm_mode
+                config.routing_mode = norm_mode.value
+            elif key == "online_model":
+                config.online_model = str(val)
+                if hasattr(intelligence_router.online_provider, "_model"):
+                    intelligence_router.online_provider._model = str(val)
+            elif key == "online_base_url":
+                config.online_base_url = str(val)
+                if hasattr(intelligence_router.online_provider, "_base_url"):
+                    intelligence_router.online_provider._base_url = str(val).rstrip("/")
+            elif key == "router_fallback":
+                config.router_fallback = bool(val)
+    except Exception as exc:
+        print(f"Failed to load persisted settings into runtime: {exc}")
+
 @router.get("")
 async def get_settings() -> Dict[str, Any]:
     conn = get_connection()
@@ -69,7 +110,19 @@ async def update_settings(req: SettingsUpdateRequest):
             elif key == "voice_volume":
                 voice_config.volume = float(val)
             elif key == "routing_mode":
-                intelligence_router.default_mode = RoutingMode.normalize(str(val))
+                norm_mode = RoutingMode.normalize(str(val))
+                intelligence_router.default_mode = norm_mode
+                config.routing_mode = norm_mode.value
+            elif key == "online_model":
+                config.online_model = str(val)
+                if hasattr(intelligence_router.online_provider, "_model"):
+                    intelligence_router.online_provider._model = str(val)
+            elif key == "online_base_url":
+                config.online_base_url = str(val)
+                if hasattr(intelligence_router.online_provider, "_base_url"):
+                    intelligence_router.online_provider._base_url = str(val).rstrip("/")
+            elif key == "router_fallback":
+                config.router_fallback = bool(val)
                 
             cursor.execute(
                 "INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) "

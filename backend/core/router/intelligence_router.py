@@ -82,7 +82,7 @@ class IntelligenceRouter:
                 break
 
         # Check online provider availability
-        online_configured = isinstance(self.online_provider, OnlineMikasaProvider) and self.online_provider.is_configured
+        online_configured = getattr(self.online_provider, "is_configured", True)
 
         # 1. Strict LOCAL_ONLY
         if mode == RoutingMode.LOCAL_ONLY:
@@ -201,6 +201,7 @@ class IntelligenceRouter:
         primary_provider = self.get_provider(decision.selected_engine)
         stream_succeeded = False
         chunks_yielded = 0
+        primary_exc_msg: Optional[str] = None
 
         try:
             async for chunk in primary_provider.stream(
@@ -208,26 +209,39 @@ class IntelligenceRouter:
                 system_prompt=sys_prompt,
                 **kwargs
             ):
-                chunks_yielded += 1
-                stream_succeeded = True
-                yield chunk
-        except Exception as primary_exc:
-            logger.warning(f"Primary provider '{primary_provider.name}' stream failed: {primary_exc}")
+                if chunk:
+                    chunks_yielded += 1
+                    stream_succeeded = True
+                    yield chunk
+        except Exception as exc:
+            logger.warning(f"Primary provider '{primary_provider.name}' stream failed: {exc}")
+            primary_exc_msg = str(exc)
 
         # Check if failover is required and possible
-        if not stream_succeeded and decision.fallback_available and decision.fallback_engine:
-            fallback_provider = self.get_provider(decision.fallback_engine)
-            logger.info(f"Intelligence Router: Initiating failover to '{fallback_provider.name}'...")
-            try:
-                async for chunk in fallback_provider.stream(
-                    messages=messages,
-                    system_prompt=sys_prompt,
-                    **kwargs
-                ):
-                    yield chunk
-            except Exception as fb_exc:
-                logger.exception(f"Fallback provider '{fallback_provider.name}' also failed: {fb_exc}")
-                yield "MIKASA was unable to generate a response due to provider unavailability."
+        # We ONLY failover if zero chunks were yielded to prevent duplicating partial text
+        if not stream_succeeded and chunks_yielded == 0:
+            if decision.fallback_available and decision.fallback_engine:
+                fallback_provider = self.get_provider(decision.fallback_engine)
+                logger.info(f"Intelligence Router: Initiating failover to '{fallback_provider.name}'...")
+                try:
+                    async for chunk in fallback_provider.stream(
+                        messages=messages,
+                        system_prompt=sys_prompt,
+                        **kwargs
+                    ):
+                        if chunk:
+                            chunks_yielded += 1
+                            stream_succeeded = True
+                            yield chunk
+                except Exception as fb_exc:
+                    logger.exception(f"Fallback provider '{fallback_provider.name}' also failed: {fb_exc}")
+                    yield f"MIKASA error: Both primary ({primary_provider.name}) and fallback ({fallback_provider.name}) providers failed."
+            else:
+                # No fallback configured or available (e.g. ONLINE_ONLY or LOCAL_ONLY)
+                err_msg = primary_exc_msg or "Provider unavailable"
+                yield f"MIKASA ({decision.selected_engine.title()} Provider) error: {err_msg}"
+        elif not stream_succeeded and chunks_yielded > 0:
+            logger.warning(f"Stream interrupted after {chunks_yielded} chunks from '{primary_provider.name}'. Suppressing fallback to prevent duplicate output.")
 
     async def generate(
         self,

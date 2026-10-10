@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-@dataclass(frozen=True)
+@dataclass
 class MikasaConfig:
     name: str = "MIKASA"
     version: str = os.getenv("MIKASA_VERSION", "2.1.0")

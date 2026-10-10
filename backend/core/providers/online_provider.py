@@ -7,6 +7,10 @@ from core.config import config
 
 logger = logging.getLogger("mikasa.provider.online")
 
+class OnlineProviderError(Exception):
+    """Custom exception for online provider errors."""
+    pass
+
 class OnlineMikasaProvider(BaseIntelligenceProvider):
     """
     Online MIKASA intelligence provider abstraction.
@@ -62,8 +66,7 @@ class OnlineMikasaProvider(BaseIntelligenceProvider):
 
         if not api_key:
             logger.warning("Online provider attempted without API key configured.")
-            yield "MIKASA Online engine requires an API key. Please configure your online provider key in settings."
-            return
+            raise OnlineProviderError("Online provider API key is not configured. Please add an API key in settings.")
 
         url = f"{base_url}/chat/completions" if not base_url.endswith("/chat/completions") else base_url
 
@@ -96,19 +99,17 @@ class OnlineMikasaProvider(BaseIntelligenceProvider):
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
                 async with client.stream("POST", url, headers=headers, json=payload) as response:
-                    if response.status_code == 401:
-                        logger.error("Online provider authentication failed (401).")
-                        yield "MIKASA Online authorization failed. Please verify your API key."
-                        return
+                    if response.status_code in (401, 403):
+                        logger.error(f"Online provider authorization failed ({response.status_code}).")
+                        raise OnlineProviderError(f"Online provider authorization failed (HTTP {response.status_code}). Please verify your API key.")
                     elif response.status_code == 429:
                         logger.warning("Online provider rate limit / quota exceeded (429).")
-                        yield "MIKASA Online provider rate limit exceeded. Please try again shortly."
-                        return
+                        raise OnlineProviderError("Online provider rate limit or quota exceeded (HTTP 429).")
                     elif response.status_code != 200:
                         error_text = await response.aread()
-                        logger.error(f"Online provider returned HTTP {response.status_code}: {error_text.decode('utf-8', errors='ignore')}")
-                        yield f"MIKASA Online engine returned status code {response.status_code}."
-                        return
+                        decoded_err = error_text.decode('utf-8', errors='ignore')
+                        logger.error(f"Online provider returned HTTP {response.status_code}: {decoded_err}")
+                        raise OnlineProviderError(f"Online provider returned HTTP status {response.status_code}: {decoded_err[:200]}")
 
                     async for line in response.aiter_lines():
                         if not line:
@@ -129,15 +130,17 @@ class OnlineMikasaProvider(BaseIntelligenceProvider):
                             except json.JSONDecodeError:
                                 continue
 
-        except httpx.ConnectError as exc:
+        except (httpx.ConnectError, httpx.NetworkError) as exc:
             logger.warning(f"Online provider connection failed: {exc}")
-            yield "MIKASA Online provider could not be reached. Please check your internet connection."
-        except httpx.TimeoutException:
+            raise OnlineProviderError(f"Online provider connection failed: {exc}")
+        except httpx.TimeoutException as exc:
             logger.warning("Online provider request timed out.")
-            yield "MIKASA Online provider request timed out."
+            raise OnlineProviderError("Online provider request timed out.")
+        except OnlineProviderError:
+            raise
         except Exception as exc:
             logger.exception(f"Unexpected online provider stream error: {exc}")
-            yield "MIKASA encountered an unexpected issue with the online provider."
+            raise OnlineProviderError(f"Unexpected online provider error: {exc}")
 
     async def check_status(self) -> Dict[str, Any]:
         """Check online provider configuration and reachability."""
