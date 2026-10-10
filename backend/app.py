@@ -26,7 +26,8 @@ logger = logging.getLogger("mikasa.core")
 async def lifespan(app: FastAPI):
     logger.info("=========================================")
     logger.info(f" MIKASA Core v{config.version} Starting...")
-    logger.info(" Mode: Local AI Assistant")
+    logger.info(f" Architecture: Intelligence Router (V2.1)")
+    logger.info(f" Routing Mode: {config.routing_mode}")
     logger.info(f" Host: {config.host}:{config.port}")
     logger.info("=========================================")
     
@@ -34,10 +35,10 @@ async def lifespan(app: FastAPI):
     logger.info("Local SQLite database initialized.")
     
     status = await brain.check_status()
-    if status.get("brain_online"):
-        logger.info("MIKASA Brain: Available (Local inference runtime connected)")
+    if status.get("brain_online") or status.get("brain_ready"):
+        logger.info(f"MIKASA Intelligence Router: Online & Operational (Mode: {status.get('mode', 'local')})")
     else:
-        logger.warning("MIKASA Brain: Offline (Local inference runtime unreachable)")
+        logger.warning("MIKASA Intelligence Router: Local & Online providers currently unreachable")
         
     yield
     
@@ -62,7 +63,7 @@ app.include_router(settings_router)
 @app.get("/api/health")
 async def health():
     brain_status = await brain.check_status()
-    is_online = brain_status.get("brain_online", False)
+    is_online = brain_status.get("brain_online", False) or brain_status.get("brain_ready", False)
     
     # Simple count of conversations and memories
     try:
@@ -80,6 +81,8 @@ async def health():
         "version": config.version,
         "mode": "local",
         "brain_ready": is_online,
+        "routing_mode": brain_status.get("mode", "local_only"),
+        "providers": brain_status.get("router", {}).get("providers", {}),
         "conversation_count": conv_count,
         "memory_count": mem_count
     }
@@ -90,7 +93,8 @@ async def core_info():
         "name": "MIKASA",
         "version": config.version,
         "mode": "local",
-        "transport": "local-core"
+        "routing_mode": config.routing_mode,
+        "transport": "intelligence-router"
     }
 
 if __name__ == "__main__":

@@ -10,7 +10,8 @@ logger = logging.getLogger("mikasa.chat")
 async def get_ai_response_stream(
     messages: List[Any],
     conversation_id: Optional[str] = None,
-    response_style: str = "balanced"
+    response_style: str = "balanced",
+    routing_mode: Optional[str] = None
 ) -> AsyncIterator[str]:
     normalized_messages = [
         m if isinstance(m, dict) else m.model_dump()
@@ -65,7 +66,8 @@ async def get_ai_response_stream(
             async for content in brain.stream(
                 messages=normalized_messages,
                 memory_context=mem_context,
-                response_style=response_style
+                response_style=response_style,
+                routing_mode=routing_mode
             ):
                 if content:
                     accumulated_response.append(content)

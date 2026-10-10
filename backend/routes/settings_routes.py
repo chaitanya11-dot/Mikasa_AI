@@ -6,6 +6,9 @@ from voice.voice_config import voice_config
 import os
 import json
 
+from core.router.intelligence_router import router as intelligence_router, RoutingMode
+from core.config import config
+
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
 DEFAULT_SETTINGS = {
@@ -17,7 +20,11 @@ DEFAULT_SETTINGS = {
     "auto_speak": False,
     "voice_rate": 1.0,
     "voice_volume": 1.0,
-    "local_mode": True
+    "local_mode": True,
+    "routing_mode": config.routing_mode,
+    "online_model": config.online_model,
+    "online_base_url": config.online_base_url,
+    "router_fallback": config.router_fallback
 }
 
 @router.get("")
@@ -61,6 +68,8 @@ async def update_settings(req: SettingsUpdateRequest):
                 voice_config.rate = float(val)
             elif key == "voice_volume":
                 voice_config.volume = float(val)
+            elif key == "routing_mode":
+                intelligence_router.default_mode = RoutingMode.normalize(str(val))
                 
             cursor.execute(
                 "INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?) "

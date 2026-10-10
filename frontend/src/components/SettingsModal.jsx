@@ -263,6 +263,33 @@ export default function SettingsModal({ isOpen, onClose, isDarkMode, setDarkMode
                   </div>
                 </div>
 
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-wider text-muted-foreground/70 mb-3">
+                    Intelligence Router (V2.1)
+                  </h3>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { id: "local_only", label: "Local Only" },
+                      { id: "local_first", label: "Local First" },
+                      { id: "auto", label: "Auto Smart" },
+                      { id: "online_first", label: "Online First" },
+                      { id: "online_only", label: "Online Only" }
+                    ].map((mode) => (
+                      <button
+                        key={mode.id}
+                        onClick={() => handleSaveSetting("routing_mode", mode.id)}
+                        className={`p-3 rounded-2xl border text-xs font-bold transition-all ${
+                          (settings.routing_mode || "local_only") === mode.id
+                            ? "border-orange-500 bg-orange-50 dark:bg-orange-950/20 text-orange-600"
+                            : "border-border hover:bg-accent"
+                        }`}
+                      >
+                        {mode.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="flex items-center justify-between p-4 rounded-2xl border border-border bg-accent/20">
                   <div>
                     <h4 className="font-bold text-xs">Enter to Send</h4>

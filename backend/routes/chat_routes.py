@@ -11,7 +11,8 @@ async def chat_endpoint(request: ChatRequest):
         get_ai_response_stream(
             messages=request.messages,
             conversation_id=request.conversation_id,
-            response_style=request.response_style or "balanced"
+            response_style=request.response_style or "balanced",
+            routing_mode=request.routing_mode
         ),
         media_type="text/event-stream",
         headers={

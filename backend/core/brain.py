@@ -1,25 +1,30 @@
 from typing import AsyncIterator, List, Dict, Any, Optional
 from core.config import config
-from core.mikasa_personality import build_system_prompt
-from ollama_handler import stream_chat_with_config, check_inference_health
+from core.router.intelligence_router import router, IntelligenceRouter
 
 class MikasaBrain:
-    """Stable MIKASA brain interface. The inference runtime is an internal implementation detail."""
-    def __init__(self):
+    """
+    MIKASA Brain facade in V2.1.
+    Delegates all cognitive processing to the Intelligence Router, seamlessly
+    coordinating between Local MIKASA and Online MIKASA provider engines.
+    """
+    def __init__(self, intelligence_router: Optional[IntelligenceRouter] = None):
         self.name = "MIKASA"
+        self.router = intelligence_router or router
 
     async def stream(
         self,
         messages: List[Dict[str, str]],
         memory_context: Optional[str] = None,
-        response_style: str = "balanced"
+        response_style: str = "balanced",
+        routing_mode: Optional[str] = None
     ) -> AsyncIterator[str]:
-        sys_prompt = build_system_prompt(memory_context=memory_context, response_style=response_style)
-        async for chunk in stream_chat_with_config(
+        """Stream generated responses via the Intelligence Router."""
+        async for chunk in self.router.stream(
             messages=messages,
-            base_url=config.ollama_url,
-            model=config.model,
-            system_prompt=sys_prompt
+            memory_context=memory_context,
+            response_style=response_style,
+            routing_mode=routing_mode
         ):
             yield chunk
 
@@ -27,20 +32,27 @@ class MikasaBrain:
         self,
         messages: List[Dict[str, str]],
         memory_context: Optional[str] = None,
-        response_style: str = "balanced"
+        response_style: str = "balanced",
+        routing_mode: Optional[str] = None
     ) -> str:
-        collected = []
-        async for chunk in self.stream(messages, memory_context=memory_context, response_style=response_style):
-            collected.append(chunk)
-        return "".join(collected)
+        """Generate full response via the Intelligence Router."""
+        return await self.router.generate(
+            messages=messages,
+            memory_context=memory_context,
+            response_style=response_style,
+            routing_mode=routing_mode
+        )
 
     async def check_status(self) -> Dict[str, Any]:
-        health = await check_inference_health(config.ollama_url, config.model)
+        """Check status of Brain and underlying router/providers."""
+        router_status = await self.router.check_status()
         return {
             "name": self.name,
-            "mode": "local",
-            "brain_online": health["online"],
-            "brain_ready": health["model_ready"]
+            "version": config.version,
+            "mode": router_status.get("routing_mode", "local_only"),
+            "brain_online": router_status.get("brain_online", False),
+            "brain_ready": router_status.get("brain_ready", False),
+            "router": router_status
         }
 
 brain = MikasaBrain()

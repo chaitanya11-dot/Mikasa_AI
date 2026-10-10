@@ -164,6 +164,7 @@ export const mikasaApi = {
     messages,
     conversationId,
     responseStyle = "balanced",
+    routingMode,
     signal,
     onDelta,
     onComplete,
@@ -176,7 +177,8 @@ export const mikasaApi = {
         body: JSON.stringify({
           messages,
           conversation_id: conversationId,
-          response_style: responseStyle
+          response_style: responseStyle,
+          routing_mode: routingMode
         }),
         signal
       });

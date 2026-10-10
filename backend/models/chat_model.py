@@ -11,6 +11,7 @@ class ChatRequest(BaseModel):
     messages: List[ChatMessage] = Field(..., description="List of messages in context")
     conversation_id: Optional[str] = Field(None, description="Optional conversation ID for persistence")
     response_style: Optional[str] = Field("balanced", description="Response style: concise, balanced, detailed")
+    routing_mode: Optional[str] = Field(None, description="Routing mode: local_only, local_first, online_first, online_only, auto")
 
 class ConversationCreateRequest(BaseModel):
     title: Optional[str] = Field("New Conversation", description="Title for conversation")
@@ -32,6 +33,10 @@ class SettingsUpdateRequest(BaseModel):
     auto_speak: Optional[bool] = None
     voice_rate: Optional[float] = None
     voice_volume: Optional[float] = None
+    routing_mode: Optional[str] = None
+    online_model: Optional[str] = None
+    online_base_url: Optional[str] = None
+    online_api_key: Optional[str] = None
 
 class VoiceSpeakRequest(BaseModel):
     text: str = Field(..., min_length=1, description="Text to speak")
